@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -14,9 +15,13 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StealerServiceImpl implements StealerService {
+
+    @Value("${logging.batch.size}")
+    Integer logBatchSize;
 
     @Value("${ps4.api.path}")
     private String PS4_API_PATH;
@@ -40,10 +45,9 @@ public class StealerServiceImpl implements StealerService {
             JsonNode rootNode = mapper.readTree(result);
             JsonNode links = rootNode.get("links");
 
-            for (JsonNode gameNode : links){
-                // TODO: add batch logging
-                // TODO: optionals?
+            int iterator = 0;
 
+            for (JsonNode gameNode : links){
                 Game game = new Game();
                 game.setId(gameNode.get("id").asText());
                 game.setTitle(gameNode.get("name").asText());
@@ -56,15 +60,23 @@ public class StealerServiceImpl implements StealerService {
                 }
 
                 allGames.add(game);
+
+                iterator++;
+
+                if (iterator % logBatchSize == 0){
+                    log.info(iterator + " games parsed");
+                }
             }
 
 
         } catch (JsonProcessingException e) {
-            // TODO: add logging here
-            System.out.println("Error " + e.getMessage());
+            log.error("Json processing exception occurred during the parsing of the games: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Exception occurred during the parsing of the games: " + e.getMessage());
         }
 
         repository.saveAll(allGames);
+        log.info("All games where saved to the database");
 
     }
 
